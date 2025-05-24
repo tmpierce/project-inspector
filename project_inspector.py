@@ -57,7 +57,7 @@ def check_directory(directory: str) -> bool:
     
     return True
 
-def extract_context(directory: str, verbose: bool = False) -> Optional[Dict[str, Any]]:
+def extract_context(directory: str, verbose: bool = False) -> Optional[str]:
     """
     Extract code context using repomix.
     
@@ -66,10 +66,10 @@ def extract_context(directory: str, verbose: bool = False) -> Optional[Dict[str,
         verbose: Whether to show verbose output
         
     Returns:
-        Dict or None: Extracted context as a dictionary, or None if extraction failed
+        str or None: Extracted context as text, or None if extraction failed
     """
     try:
-        cmd = ["repomix", "extract", directory]
+        cmd = ["repomix", "--stdout", directory]
         
         if verbose:
             print(f"Running: {' '.join(cmd)}")
@@ -81,34 +81,28 @@ def extract_context(directory: str, verbose: bool = False) -> Optional[Dict[str,
             check=True
         )
         
-        return json.loads(result.stdout)
+        return result.stdout
     except subprocess.CalledProcessError as e:
         print(f"Error running repomix: {e}", file=sys.stderr)
         if verbose:
             print(f"stderr: {e.stderr}", file=sys.stderr)
         return None
-    except json.JSONDecodeError:
-        print("Error: Failed to parse repomix output as JSON", file=sys.stderr)
-        return None
     except FileNotFoundError:
         print("Error: 'repomix' command not found. Please install it first.", file=sys.stderr)
         return None
 
-def analyze_context(context: Dict[str, Any], verbose: bool = False) -> Optional[Dict[str, Any]]:
+def analyze_context(context: str, verbose: bool = False) -> Optional[Dict[str, Any]]:
     """
     Analyze the extracted context using an LLM.
     
     Args:
-        context: The extracted context dictionary
+        context: The extracted context as text
         verbose: Whether to show verbose output
         
     Returns:
         Dict or None: Analysis results as a dictionary, or None if analysis failed
     """
     try:
-        # Prepare context for LLM
-        context_json = json.dumps(context)
-        
         cmd = ["llm", "analyze", "--format", "json"]
         
         if verbose:
@@ -116,7 +110,7 @@ def analyze_context(context: Dict[str, Any], verbose: bool = False) -> Optional[
             
         result = subprocess.run(
             cmd,
-            input=context_json,
+            input=context,
             capture_output=True,
             text=True,
             check=True
@@ -135,7 +129,7 @@ def analyze_context(context: Dict[str, Any], verbose: bool = False) -> Optional[
         print("Error: 'llm' command not found. Please install it first.", file=sys.stderr)
         return None
 
-def format_report(directory: str, context: Dict[str, Any], analysis: Dict[str, Any]) -> str:
+def format_report(directory: str, context: str, analysis: Dict[str, Any]) -> str:
     """
     Format the analysis results into a readable report.
     
@@ -171,13 +165,8 @@ def format_report(directory: str, context: Dict[str, Any], analysis: Dict[str, A
     report.append("FILE STATISTICS")
     report.append("-" * 80)
     
-    if "file_count" in context:
-        report.append(f"Total files: {context['file_count']}")
-    
-    if "file_types" in context:
-        report.append("File types:")
-        for file_type, count in context["file_types"].items():
-            report.append(f"  - {file_type}: {count}")
+    # Since context is now text, we can't access it as a dictionary
+    report.append("Context extracted with repomix")
     
     report.append("")
     
