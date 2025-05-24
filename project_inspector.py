@@ -68,20 +68,28 @@ def extract_context(directory: str, verbose: bool = False) -> Optional[str]:
     Returns:
         str or None: Extracted context as text, or None if extraction failed
     """
+    temp_file = "temp_output.md"
     try:
-        cmd = ["repomix", "--stdout", directory]
+        cmd = ["repomix", "-o", temp_file, "--style", "plain", directory]
         
         if verbose:
             print(f"Running: {' '.join(cmd)}")
             
-        result = subprocess.run(
+        subprocess.run(
             cmd,
+            check=True,
             capture_output=True,
-            text=True,
-            check=True
+            text=True
         )
         
-        return result.stdout
+        # Read the content from the generated file
+        with open(temp_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+            
+        # Clean up the temporary file
+        os.remove(temp_file)
+        
+        return content
     except subprocess.CalledProcessError as e:
         print(f"Error running repomix: {e}", file=sys.stderr)
         if verbose:
@@ -90,6 +98,16 @@ def extract_context(directory: str, verbose: bool = False) -> Optional[str]:
     except FileNotFoundError:
         print("Error: 'repomix' command not found. Please install it first.", file=sys.stderr)
         return None
+    except IOError as e:
+        print(f"Error reading temporary file: {e}", file=sys.stderr)
+        return None
+    finally:
+        # Make sure to clean up the temporary file even if an error occurs
+        if os.path.exists(temp_file):
+            try:
+                os.remove(temp_file)
+            except:
+                pass
 
 def analyze_context(context: str, verbose: bool = False) -> Optional[Dict[str, Any]]:
     """
@@ -102,20 +120,29 @@ def analyze_context(context: str, verbose: bool = False) -> Optional[Dict[str, A
     Returns:
         Dict or None: Analysis results as a dictionary, or None if analysis failed
     """
+    temp_input_file = "temp_input.md"
     try:
-        cmd = ["llm", "analyze", "--format", "json"]
+        # Write the context to a temporary file for input
+        with open(temp_input_file, 'w', encoding='utf-8') as f:
+            f.write(context)
+            
+        prompt = 'Analyze this codebase and provide: 1) A project_summary describing what the code does, 2) A list of recommendations for improvements. Format your response as JSON with keys "project_summary" and "recommendations" (an array).'
+        cmd = ["llm", "prompt", prompt]
         
         if verbose:
             print(f"Running: {' '.join(cmd)}")
             
-        result = subprocess.run(
-            cmd,
-            input=context,
-            capture_output=True,
-            text=True,
-            check=True
-        )
+        # Redirect the input file to the command
+        with open(temp_input_file, 'r', encoding='utf-8') as f:
+            result = subprocess.run(
+                cmd,
+                stdin=f,
+                capture_output=True,
+                text=True,
+                check=True
+            )
         
+        # Parse the output as JSON
         return json.loads(result.stdout)
     except subprocess.CalledProcessError as e:
         print(f"Error running LLM analysis: {e}", file=sys.stderr)
@@ -128,6 +155,16 @@ def analyze_context(context: str, verbose: bool = False) -> Optional[Dict[str, A
     except FileNotFoundError:
         print("Error: 'llm' command not found. Please install it first.", file=sys.stderr)
         return None
+    except IOError as e:
+        print(f"Error with temporary file: {e}", file=sys.stderr)
+        return None
+    finally:
+        # Clean up the temporary file
+        if os.path.exists(temp_input_file):
+            try:
+                os.remove(temp_input_file)
+            except:
+                pass
 
 def format_report(directory: str, context: str, analysis: Dict[str, Any]) -> str:
     """
