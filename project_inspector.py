@@ -75,21 +75,34 @@ def extract_context(directory: str, verbose: bool = False) -> Optional[str]:
         if verbose:
             print(f"Running: {' '.join(cmd)}")
             
-        subprocess.run(
-            cmd,
-            check=True,
-            capture_output=True,
-            text=True
-        )
+        # Run the command but ignore stderr encoding issues
+        try:
+            subprocess.run(
+                cmd,
+                check=False,  # Don't raise exception on non-zero exit
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding='utf-8',
+                errors='ignore'  # Ignore encoding errors
+            )
+        except Exception as e:
+            if verbose:
+                print(f"Warning: Command execution issue: {e}", file=sys.stderr)
         
-        # Read the content from the generated file
-        with open(temp_file, 'r', encoding='utf-8') as f:
-            content = f.read()
+        # Check if the output file was created successfully regardless of stderr issues
+        if os.path.exists(temp_file):
+            # Read the content from the generated file
+            with open(temp_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+                
+            # Clean up the temporary file
+            os.remove(temp_file)
             
-        # Clean up the temporary file
-        os.remove(temp_file)
-        
-        return content
+            return content
+        else:
+            print("Error: Output file was not created by repomix", file=sys.stderr)
+            return None
     except subprocess.CalledProcessError as e:
         print(f"Error running repomix: {e}", file=sys.stderr)
         if verbose:
