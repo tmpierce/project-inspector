@@ -9,7 +9,7 @@ import subprocess
 import sys
 import json
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Optional
 
 def parse_arguments() -> argparse.Namespace:
     """Parse command line arguments."""
@@ -123,7 +123,7 @@ def extract_context(directory: str, verbose: bool = False) -> Optional[str]:
             except:
                 pass
 
-def analyze_context(context: str, verbose: bool = False) -> Optional[Dict[str, Any]]:
+def analyze_context(context: str, verbose: bool = False) -> Optional[str]:
     """
     Analyze the extracted context using an LLM.
     
@@ -132,7 +132,7 @@ def analyze_context(context: str, verbose: bool = False) -> Optional[Dict[str, A
         verbose: Whether to show verbose output
         
     Returns:
-        Dict or None: Analysis results as a dictionary, or None if analysis failed
+        str or None: Analysis results as text, or None if analysis failed
     """
     temp_input_file = "temp_input.md"
     try:
@@ -140,7 +140,7 @@ def analyze_context(context: str, verbose: bool = False) -> Optional[Dict[str, A
         with open(temp_input_file, 'w', encoding='utf-8') as f:
             f.write(context)
             
-        prompt = 'Analyze this codebase and provide: 1) A project_summary describing what the code does, 2) A list of recommendations for improvements. Format your response as JSON with keys "project_summary" and "recommendations" (an array).'
+        prompt = 'Analyze this codebase and provide: 1) A project summary describing what the code does, 2) A list of recommendations for improvements.'
         cmd = ["llm", "prompt", prompt]
         
         if verbose:
@@ -156,15 +156,12 @@ def analyze_context(context: str, verbose: bool = False) -> Optional[Dict[str, A
                 check=True
             )
         
-        # Parse the output as JSON
-        return json.loads(result.stdout)
+        # Return the raw output
+        return result.stdout
     except subprocess.CalledProcessError as e:
         print(f"Error running LLM analysis: {e}", file=sys.stderr)
         if verbose:
             print(f"stderr: {e.stderr}", file=sys.stderr)
-        return None
-    except json.JSONDecodeError:
-        print("Error: Failed to parse LLM output as JSON", file=sys.stderr)
         return None
     except FileNotFoundError:
         print("Error: 'llm' command not found. Please install it first.", file=sys.stderr)
@@ -180,14 +177,14 @@ def analyze_context(context: str, verbose: bool = False) -> Optional[Dict[str, A
             except:
                 pass
 
-def format_report(directory: str, context: str, analysis: Dict[str, Any]) -> str:
+def format_report(directory: str, context: str, analysis: str) -> str:
     """
     Format the analysis results into a readable report.
     
     Args:
         directory: The analyzed directory path
         context: The extracted context
-        analysis: The analysis results
+        analysis: The analysis results as text
         
     Returns:
         str: Formatted report
@@ -201,35 +198,10 @@ def format_report(directory: str, context: str, analysis: Dict[str, Any]) -> str
     report.append("=" * 80)
     report.append("")
     
-    # Project overview
-    report.append("PROJECT OVERVIEW")
+    # LLM Analysis
+    report.append("LLM ANALYSIS")
     report.append("-" * 80)
-    
-    if "project_summary" in analysis:
-        report.append(analysis["project_summary"])
-    else:
-        report.append("No project summary available.")
-    
-    report.append("")
-    
-    # File statistics
-    report.append("FILE STATISTICS")
-    report.append("-" * 80)
-    
-    # Since context is now text, we can't access it as a dictionary
-    report.append("Context extracted with repomix")
-    
-    report.append("")
-    
-    # Recommendations
-    report.append("RECOMMENDATIONS")
-    report.append("-" * 80)
-    
-    if "recommendations" in analysis:
-        for i, rec in enumerate(analysis["recommendations"], 1):
-            report.append(f"{i}. {rec}")
-    else:
-        report.append("No recommendations available.")
+    report.append(analysis)
     
     report.append("")
     report.append("=" * 80)
