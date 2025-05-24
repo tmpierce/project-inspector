@@ -74,23 +74,24 @@ def extract_context(directory: str, verbose: bool = False) -> Optional[str]:
         
         if verbose:
             print(f"Running: {' '.join(cmd)}")
-            
-        # Run the command but ignore stderr encoding issues
-        try:
-            subprocess.run(
-                cmd,
-                check=False,  # Don't raise exception on non-zero exit
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                encoding='utf-8',
-                errors='ignore'  # Ignore encoding errors
-            )
-        except Exception as e:
-            if verbose:
-                print(f"Warning: Command execution issue: {e}", file=sys.stderr)
         
-        # Check if the output file was created successfully regardless of stderr issues
+        # Set environment variables for proper UTF-8 encoding
+        env = os.environ.copy()
+        env['PYTHONIOENCODING'] = 'utf-8'
+        env['PYTHONUTF8'] = '1'
+        
+        # Run the command with proper encoding environment variables
+        subprocess.run(
+            cmd,
+            check=True,  # Raise exception on non-zero exit
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding='utf-8',
+            env=env
+        )
+        
+        # Test that the output file was created successfully
         if os.path.exists(temp_file):
             # Read the content from the generated file
             with open(temp_file, 'r', encoding='utf-8') as f:
